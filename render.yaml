@@ -1,6 +1,7 @@
 services:
   - type: web
     name: smartresume-ai-api
+    plan: free
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: .
