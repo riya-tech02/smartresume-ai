@@ -1,0 +1,403 @@
+# SmartResume AI — Product Requirements Document (PRD)
+
+| | |
+|---|---|
+| **Product** | SmartResume AI — AI-Powered Resume Creation and ATS Analysis Platform |
+| **Document version** | 1.0 |
+| **Project type** | B.Tech CSE mini project (full-stack web application) |
+| **Companion documents** | `ARCHITECTURE.md` (how it is built), `AGENT.md` (how the coding agent must build it) |
+| **Conflict rule** | If documents disagree: **PRD.md decides *what*; ARCHITECTURE.md decides *how*; AGENT.md decides *process*.** The agent must flag any conflict in `docs/PROGRESS.md` rather than silently choosing. |
+
+---
+
+## 1. Product Overview
+
+SmartResume AI lets students, freshers and professionals build ATS-friendly resumes in a live editor, improve wording with an AI assistant, score the resume against a job description with a transparent heuristic ATS analyzer, and export a print-ready A4 PDF with selectable text.
+
+Primary focus: **college students and freshers applying for internships and entry-level software engineering roles.**
+
+## 2. Problem Statement
+
+1. Students lack design skills and produce cluttered resumes (tables, images, multi-column layouts) that parse badly in Applicant Tracking Systems.
+2. Fresher resumes are weak in content: vague bullets ("worked on a website"), no metrics, no action verbs.
+3. Students do not know which keywords a job description expects, so they apply with untailored resumes.
+4. Existing tools are paywalled, over-complicated, or hide how scores are calculated.
+
+## 3. Proposed Solution
+
+A single web app combining: (a) structured resume editor with live preview, (b) four professionally designed templates, (c) AI writing assistant with strict "never invent facts" guardrails, (d) deterministic, explainable ATS analyzer and job-description matcher, (e) server-rendered PDF export that matches the preview, (f) dashboard for managing multiple resumes.
+
+## 4. Product Vision
+
+*"Every student can produce a clean, honest, ATS-friendly resume in under 15 minutes — and understand exactly why it will or won't match a job."*
+
+Design principles: **Honest** (AI never fabricates; scores are labelled estimates), **Transparent** (every score has visible reasons), **Fast** (autosave, instant preview), **Simple** (no clutter).
+
+## 5. Target Audience
+
+College students, fresh graduates, internship applicants, job seekers, experienced professionals (secondary).
+
+## 6. User Personas
+
+| Persona | Profile | Goals | Frustrations |
+|---|---|---|---|
+| **Aarav, 20, 3rd-year B.Tech** | First resume, applying for summer internships, has 3 class projects, no work experience | Look professional, know what to write | Doesn't know how to describe projects; resumes get no replies |
+| **Neha, 22, final-year, campus placements** | Applying to 15 companies with different JDs | Tailor resume per JD quickly, keep multiple versions | Copy-pasting between Word files; unsure what ATS wants |
+| **Rohan, 27, 4 yrs experience** | Switching jobs | Polish bullets, add metrics, export clean PDF | Old templates look dated; wants fast edits |
+
+## 7. User Pain Points
+
+Blank-page paralysis · weak bullet wording · unknown ATS rules · no feedback loop · formatting breaking on export · managing many resume versions · fear of AI inventing false claims.
+
+## 8. Product Objectives (measurable)
+
+| ID | Objective | Target |
+|---|---|---|
+| O1 | Time for a new user to produce and download a first resume | ≤ 15 min (tested with 5 peers) |
+| O2 | PDF fidelity | 20 consecutive manual exports (5 per template) with no layout defects; text selectable |
+| O3 | ATS analyzer determinism | Same input → identical score; ≥ 25 fixture tests pass |
+| O4 | AI honesty | 0 fabricated figures flagged unwarned in the 30-case guardrail test set |
+| O5 | Usability | SUS score ≥ 70 from ≥ 5 testers |
+| O6 | Quality | Lighthouse (desktop, landing) Performance ≥ 85, Accessibility ≥ 90 |
+
+---
+
+## 9. Functional Requirements
+
+Priority: **M** = Must (MVP), **S** = Should (MVP if time), **C** = Could (post-MVP).
+
+### 9.1 Authentication & User Management (AUTH)
+
+| ID | Requirement | P |
+|---|---|---|
+| AUTH-01 | Register with name, email, password. Email unique, case-insensitive. | M |
+| AUTH-02 | Password rules: 8–72 bytes, ≥1 letter and ≥1 number. Stored only as bcrypt hash (cost ≥ 12). | M |
+| AUTH-03 | Login with email + password; generic error "Invalid email or password" (no user enumeration). | M |
+| AUTH-04 | Session: short-lived access JWT (15 min) + rotating httpOnly refresh cookie (7 days). Silent refresh; logout revokes refresh token. | M |
+| AUTH-05 | Protected routes redirect unauthenticated users to `/login` and return to the intended page afterwards. | M |
+| AUTH-06 | Settings page: update name, change password (requires current password), delete account (requires password; deletes all user data), export my data as JSON. | M |
+| AUTH-07 | Login rate-limited (10 attempts / 15 min per IP+email). | M |
+| AUTH-08 | Forgot-password / email verification. | C (out of MVP; see §24) |
+
+**Acceptance criteria**
+- AC-AUTH-1: Registering with an existing email (any letter case) returns a field error on `email`; no duplicate user is created.
+- AC-AUTH-2: After login, reloading the page keeps the user signed in (silent refresh) without showing the login page.
+- AC-AUTH-3: After logout, `POST /auth/refresh` with the old cookie returns 401.
+- AC-AUTH-4: Accessing another user's resume ID returns 404 (not 403) and leaks no data.
+- AC-AUTH-5: Deleting the account removes the user, resumes, analyses, refresh tokens and AI usage records (verified by DB check in an integration test).
+
+### 9.2 Smart Resume Builder (RES)
+
+| ID | Requirement | P |
+|---|---|---|
+| RES-01 | Fixed **Personal Information** block: full name, headline/title, email, phone, location, links (LinkedIn, GitHub, portfolio, other; label + URL). | M |
+| RES-02 | Sections: Professional Summary, Education, Technical Skills, Work Experience, Internships, Projects, Certifications, Achievements, Extracurricular Activities, Languages, Custom (multiple allowed). Each non-custom type exists at most once. | M |
+| RES-03 | Add / remove sections; rename section titles; show/hide a section without deleting data. | M |
+| RES-04 | Reorder sections (drag-and-drop **and** keyboard/move-up-down buttons). Order persists and is used by every template. | M |
+| RES-05 | Multiple entries per section; add, edit, delete, reorder entries. Bullets are plain-text lists (max 10 per entry, 300 chars each). | M |
+| RES-06 | Live preview updates ≤ 100 ms after a keystroke (perceived), rendered with the real template component at A4 proportions. | M |
+| RES-07 | Autosave: debounced 1.5 s after last change; visible status (Saving… / Saved at HH:MM / Offline — retrying / Conflict). | M |
+| RES-08 | Optimistic concurrency: a stale save (another tab edited) returns 409 and shows a conflict banner offering "Reload latest" or "Overwrite with mine". | S |
+| RES-09 | New users get a persisted **sample resume** (clearly fictional content, flagged `isSample`) created at registration. "New resume" also offers "Start with example content". | M |
+| RES-10 | Unsaved-changes guard (`beforeunload`) when a save is pending or failed. | M |
+| RES-11 | Resume completion percentage (formula in §11.2) shown in builder header and dashboard. | M |
+| RES-12 | Inline field validation with accessible error messages; limits in §10. | M |
+
+**Acceptance criteria**
+- AC-RES-1: Add an Experience entry, type in a field, wait 2 s → status shows "Saved"; reload the page → the data is present.
+- AC-RES-2: Reordering "Projects" above "Education" changes order in preview **and** in exported PDF.
+- AC-RES-3: Hiding a section removes it from preview/PDF/ATS text but data remains when un-hidden.
+- AC-RES-4: Two tabs: edit in tab A, then in tab B (stale) → tab B save shows the conflict banner and does **not** silently overwrite.
+- AC-RES-5: Sample resume exists for every newly registered user and can be edited, duplicated and deleted like any other.
+
+### 9.3 Professional Templates (TPL)
+
+| ID | Requirement | P |
+|---|---|---|
+| TPL-01 | Four templates: **Modern Professional** (`modern-professional`), **Minimal ATS-Friendly** (`minimal-ats`), **Software Engineer** (`software-engineer`), **Fresher / Student** (`fresher-student`). | M |
+| TPL-02 | A template is a *rendering layer only*: switching `templateId` never alters resume data. | M |
+| TPL-03 | Per-resume style settings: accent color (curated palette), font scale (S/M/L), spacing (compact/normal/relaxed). | S |
+| TPL-04 | All templates: A4, consistent spacing, bundled fonts (no external font CDN), real selectable text, no images/icons required to read content. | M |
+| TPL-05 | Template metadata flag `atsSafe` (single-column, no tables). `minimal-ats`, `software-engineer`, `fresher-student` are `atsSafe: true`; `modern-professional` (two-column sidebar) is `atsSafe: false` and the ATS analyzer reports this. | M |
+| TPL-06 | Template gallery page with live thumbnails rendered from sample data; "Use this template" creates a resume. In the builder a template switcher drawer changes the template instantly. | M |
+| TPL-07 | Preview is responsive: scales to container width on mobile/tablet (CSS transform scale) without reflowing the A4 layout. | M |
+
+**Template design notes**
+
+| Template | Layout | Typography | Intended for |
+|---|---|---|---|
+| Modern Professional | Two columns (narrow sidebar: contact, skills, languages; main: rest), accent header | Inter | Non-ATS-portal applications, professionals |
+| Minimal ATS-Friendly | Single column, black text, thin dividers, no color except optional accent on headings | Arimo (Arial-metric) | Strict ATS portals |
+| Software Engineer | Single column, dense, skills-first, tech stack line per project, monospace tech tags rendered as plain text | IBM Plex Sans + IBM Plex Mono | SWE internships/jobs |
+| Fresher / Student | Single column, Education before Experience, projects emphasized, spacious | Source Sans 3 | Students with little experience |
+
+**Acceptance criteria**
+- AC-TPL-1: Switching through all 4 templates with the sample resume loses no fields (deep-equal check on resume data before/after).
+- AC-TPL-2: Each template renders the sample resume on **1 page** and a long test resume on **2+ pages** without text clipped or overlapping.
+
+### 9.4 AI Resume Assistant (AI)
+
+Task-based assistant (not a free-form chatbot) available (a) as ✨ buttons next to fields in the builder and (b) on the dedicated Assistant page.
+
+| ID | Feature | Input | Output |
+|---|---|---|---|
+| AI-01 | Generate summary | personal headline, skills, education, up to 3 experience/project titles | 2–3 summary options (30–80 words) |
+| AI-02 | Improve bullet points | 1–10 bullets | Improved version per bullet + reason |
+| AI-03 | Rewrite project description | project name, tech stack, current description | Professional rewrite as 2–4 bullets |
+| AI-04 | Suggest skills | role headline/target role + existing skills | Up to 15 relevant skills **not already listed**, flagged "add only if you have them" |
+| AI-05 | Convert description → achievement bullets | free-text description | 2–4 achievement-oriented bullets with `[add metric]` placeholders instead of invented numbers |
+| AI-06 | Grammar & clarity | any text field | Corrected text + list of changes |
+| AI-07 | Action-verb suggestions | a bullet | Stronger verb alternatives (deterministic dictionary; works without LLM) |
+| AI-08 | Tailor to job description | job description + selected section/bullets | Rewording suggestions emphasising matching *truthful* content + list of JD keywords the user may add if true |
+
+Rules:
+- AI-R1: **Suggestions are never written into the resume automatically.** They appear in a visually distinct "AI suggestion" card (sparkle badge, dashed border) with **Accept / Edit then accept / Reject**. Only accepted text becomes resume content.
+- AI-R2: The AI must never invent employers, titles, dates, degrees, certifications, awards, or numeric results. Missing metrics are shown as `[add metric]`.
+- AI-R3: **Fact guard:** any number, percentage, currency amount, or technology/proper noun in a suggestion that does not appear in the user-supplied source text triggers a visible warning "Contains details not in your original text — verify before accepting."
+- AI-R4: Graceful fallback: if the LLM is unavailable/times out/over quota, the API returns a rule-based result with `meta.fallback = true` and the UI shows "AI is unavailable — showing rule-based suggestions."
+- AI-R5: API keys exist only in server environment variables.
+- AI-R6: First use requires one-time consent ("Selected resume text is sent to a third-party AI provider; contact details are never sent"). Stored as `aiConsentAcceptedAt`.
+- AI-R7: Per-user quota: 30 AI requests/day and 10/min (configurable).
+- AI-R8: Mock mode (`AI_PROVIDER=mock`) returns deterministic canned outputs for local dev and tests.
+
+**Acceptance criteria**
+- AC-AI-1: With `AI_PROVIDER=mock`, every feature returns a valid, schema-conformant result.
+- AC-AI-2: With an invalid API key, the endpoint still returns 200 with `meta.fallback=true` (no 500, no key leakage in response or logs).
+- AC-AI-3: Input "Built a website for college fest" never yields an output containing an unprovided number such as "10,000 users" without a fact-guard warning.
+- AC-AI-4: Rejecting a suggestion leaves the resume unchanged (verified by revision number not incrementing).
+- AC-AI-5: Contact details (email, phone, URLs) never appear in the prompt sent to the provider (unit test on prompt builders).
+
+### 9.5 ATS Resume Analyzer (ATS)
+
+A **deterministic, rule-based** engine (no LLM needed for scoring; LLM only enriches suggestions optionally).
+
+| ID | Requirement | P |
+|---|---|---|
+| ATS-01 | Overall score 0–100 plus sub-scores (0–100 each): Keyword match, Skills match, Formatting, Content quality, Completeness. Weighting in §11.3. | M |
+| ATS-02 | Works **without** a job description (keyword and skills sub-scores show "N/A — add a job description"; weights redistributed). | M |
+| ATS-03 | Section detection: lists which standard sections are present/missing/empty. | M |
+| ATS-04 | Formatting checks F1–F10 and content checks C1–C9 (§11.3), each with pass/fail, explanation and fix. | M |
+| ATS-05 | Missing-information detection (e.g., no phone, no skills, no projects for a fresher). | M |
+| ATS-06 | Action-verb suggestions for bullets not starting with a strong verb. | M |
+| ATS-07 | Prioritised recommendation list (high/medium/low) with deep links to the exact section/entry in the builder. | M |
+| ATS-08 | Persist reports (last 10 per resume) and show score history. | S |
+| ATS-09 | **Disclaimer always visible:** "This is an estimated heuristic score to help you improve your resume. It is not a guarantee of passing any company's ATS." | M |
+
+**Acceptance criteria**
+- AC-ATS-1: Same resume + same JD yields identical scores on repeated runs.
+- AC-ATS-2: An empty resume scores < 20; the sample resume without JD scores ≥ 70; fixture resumes land in their expected bands (±5).
+- AC-ATS-3: Report renders in ≤ 2 s (API p95 ≤ 500 ms).
+- AC-ATS-4: Every recommendation links to a section that exists in the resume.
+
+### 9.6 Job Description Matcher (JD)
+
+| ID | Requirement | P |
+|---|---|---|
+| JD-01 | User pastes a job description (≤ 10,000 chars) and optionally job title/company; selects a resume. | M |
+| JD-02 | System extracts requirements: skills (from dictionary), keywords, and seniority/degree hints. | M |
+| JD-03 | Compares to resume: matched skills/keywords, **missing** skills/keywords ranked by importance. | M |
+| JD-04 | Per-section suggestions (e.g., "Skills: add *Docker* if you have used it"; "Project X: mention *REST API*"). Optional AI enrichment via AI-08. | M |
+| JD-05 | "Save as tailored copy": duplicates the resume with title "<Resume> – <Company/Role>" so the original stays untouched. | S |
+| JD-06 | JD text is treated as untrusted input (rendered as plain text; never executed; prompt-injection defence on AI calls). | M |
+
+**Acceptance criteria**
+- AC-JD-1: Pasting a JD mentioning React/Node/MongoDB against a resume listing only React shows Node and MongoDB as missing, React as matched.
+- AC-JD-2: Matching is case-insensitive and alias-aware ("JS" = "JavaScript", "Node" = "Node.js", "Mongo" = "MongoDB").
+
+### 9.7 PDF Export (PDF)
+
+| ID | Requirement | P |
+|---|---|---|
+| PDF-01 | "Download PDF" produces an A4 PDF, text selectable, multi-page capable, filename `<FullName>_<ResumeTitle>.pdf` (sanitised). | M |
+| PDF-02 | PDF rendered by headless Chromium from the **same React template components** used in the preview (guarantees fidelity). | M |
+| PDF-03 | Page breaks avoid splitting an entry's heading from its first bullet and avoid orphaned section headings. | M |
+| PDF-04 | Fallback: if server PDF generation is unavailable, the UI offers "Print / Save as PDF" using the browser print dialog with the same print stylesheet. | M |
+| PDF-05 | PDF generation ≤ 10 s p95 for 2 pages; concurrency-limited (max 2 simultaneous renders) with clear "busy, retry" error. | M |
+
+**Acceptance criteria**
+- AC-PDF-1: Text can be selected/copied from the exported PDF; copying yields sensible reading order for single-column templates.
+- AC-PDF-2: PDF page size is 210 × 297 mm; fonts are embedded.
+- AC-PDF-3: PDF for a 2-page resume has 2 pages and no clipped text.
+
+### 9.8 Dashboard (DASH)
+
+| ID | Requirement | P |
+|---|---|---|
+| DASH-01 | Stats: total resumes, latest ATS score (if any), resumes below 60% completion. | M |
+| DASH-02 | Resume cards/table: title, template, last edited (relative + absolute on hover), completion %, last ATS score. | M |
+| DASH-03 | Actions: open, rename, duplicate, delete (confirm dialog), download PDF, run ATS analysis. | M |
+| DASH-04 | Quick-create button; empty state for zero resumes. | M |
+| DASH-05 | Search by title and sort (last edited, title, completion). | S |
+| DASH-06 | Max 20 resumes per user; friendly error when exceeded. | M |
+
+---
+
+## 10. Data Limits & Validation Rules
+
+| Field | Rule |
+|---|---|
+| name / fullName | 1–100 chars |
+| email | valid format, ≤ 254 chars |
+| password | 8–72 bytes, ≥1 letter, ≥1 number |
+| resume title | 1–80 chars |
+| headline | ≤ 120 chars |
+| summary text | ≤ 1,000 chars |
+| bullet | ≤ 300 chars; ≤ 10 per entry |
+| entries per section | ≤ 30 |
+| sections per resume | ≤ 25 (≤ 5 custom) |
+| URL | `http(s)://` only, ≤ 300 chars |
+| JD text | 50–10,000 chars |
+| total resume JSON | ≤ 200 KB |
+| resumes per user | ≤ 20 |
+
+## 11. Calculations
+
+### 11.1 Dates
+Stored as `"YYYY-MM"` or `""`; `current: true` means "Present". Display format set by template (e.g., "Jun 2025").
+
+### 11.2 Completion percentage (0–100)
+Contact (name, email, phone, location present) **15** · Headline or summary **10** · Education ≥1 entry **15** · Skills ≥1 group with items **15** · Experience or Internships ≥1 entry **15** · Projects ≥1 entry **15** · ≥1 link (LinkedIn/GitHub/portfolio) **5** · ≥1 extra entry in Certifications/Achievements/Extracurricular/Languages/Custom **10**. Implemented once in `shared/` and reused by client and server.
+
+### 11.3 ATS scoring (authoritative; ARCHITECTURE.md implements it)
+- **With JD:** Keyword 30% · Skills 15% · Formatting 20% · Content 20% · Completeness 15%.
+- **Without JD:** Formatting 30% · Content 40% · Completeness 30%.
+- **Formatting checks (F1–F10):** F1 email+phone present and valid · F2 standard section headings · F3 template `atsSafe` · F4 estimated ≤ 2 pages (≤ 1 page expected when < 3 years' experience) · F5 dates present & consistent · F6 reverse-chronological order · F7 no visible empty sections · F8 no emoji/special glyphs, no all-caps paragraphs · F9 2–6 bullets per experience/project entry · F10 valid URLs.
+- **Content checks (C1–C9):** C1 ≥ 80% bullets start with a strong action verb · C2 ≥ 30% bullets quantified · C3 bullet length 8–28 words · C4 no weak phrases ("responsible for", "worked on", "helped with", "duties included") · C5 no first-person pronouns · C6 summary 30–80 words · C7 no verb used to start > 2 bullets · C8 8–25 skills listed · C9 no clichés ("hard-working", "team player", "go-getter", "results-oriented").
+- Keyword match % = importance-weighted share of JD keywords found in resume text (alias- and stem-aware). Skills match % = share of dictionary skills in the JD found in the resume.
+
+---
+
+## 12. Non-Functional Requirements
+
+| Area | Requirement |
+|---|---|
+| Security | See §19. OWASP Top-10 aware; no secrets in code or repo. |
+| Validation | Zod schemas validate **every** request body/query/params; unknown keys rejected. |
+| AuthZ | Every resume/analysis query filters by `userId`. |
+| Error handling | Uniform error envelope with `code`, `message`, `requestId`; no stack traces in production responses. |
+| Persistence | MongoDB; autosave + revision counter; no data in localStorage except UI preferences. |
+| Performance | CRUD API p95 ≤ 300 ms (excluding AI/PDF); ATS ≤ 500 ms; PDF ≤ 10 s; route-level code splitting; landing JS ≤ 250 KB gzipped. |
+| Responsive | Works at 360 px, 768 px, 1280 px+ widths. Builder: 3-pane desktop, tabbed Edit/Preview on tablet/mobile. |
+| Accessibility | WCAG 2.1 AA target: keyboard operable (including reorder), visible focus, labels on inputs, `aria-live` for save status and toasts, contrast ≥ 4.5:1, reduced-motion respected. |
+| Maintainability | TypeScript strict; ESLint + Prettier; shared types/schemas in `shared/`; feature-based folders. |
+| Reusability | Shared UI primitives; one template-primitives kit reused by all four templates. |
+| Config | All config via validated environment variables (`.env.example` committed, `.env` ignored). |
+| Logging | Structured JSON logs (pino) with request IDs; **never log passwords, tokens, API keys, resume content, or JD text**. |
+| Testing | Unit + integration + one E2E happy path; coverage targets in AGENT.md. |
+| Privacy | Contact details never sent to the LLM; user can export and delete all data. |
+
+## 13. Complete Feature Descriptions — Key UX Behaviour
+
+- **Builder layout (≥1024 px):** left rail = section list (drag handle, eye toggle, "+ Add section"); center = active section editor; right = live A4 preview with zoom (fit/100%) and page-break guides. Header: inline-editable title, save status, completion ring, Template, ✨ Assistant, ATS, Download PDF.
+- **Builder layout (<1024 px):** segmented control **Edit | Preview**; section list becomes a horizontal chip scroller / drawer.
+- **Entry cards:** collapsible, with drag handle, duplicate, delete (undo toast for 6 s).
+- **✨ buttons:** open a popover with suggestion cards; accepting patches the field and triggers autosave.
+- **ATS page:** left = JD textarea (optional) + "Analyze"; right = score gauge, sub-score bars, collapsible check lists, prioritised recommendations with "Go fix" links; history sparkline.
+- **JD Matcher page:** two-column: JD input → results (matched/missing chips, per-section suggestions, "Create tailored copy").
+- **Assistant page:** feature tabs (Summary, Bullets, Project, Skills, Achievements, Grammar, Verbs, Tailor); choose resume + target field or paste text; results as suggestion cards with Accept (writes to chosen field) / Copy / Reject.
+
+## 14. User Stories (selected, all Must unless noted)
+
+| ID | As a… | I want… | So that… |
+|---|---|---|---|
+| US-01 | visitor | to understand the product and see templates | I decide to sign up |
+| US-02 | visitor | to register with email/password | my resumes are saved |
+| US-03 | user | to stay signed in across reloads | I don't re-login constantly |
+| US-04 | new user | a pre-filled example resume | I learn the editor quickly |
+| US-05 | user | to edit sections with a live preview | I see changes instantly |
+| US-06 | user | autosave with a visible status | I never lose work |
+| US-07 | user | to reorder/hide sections | I control emphasis |
+| US-08 | user | to switch templates without losing data | I can compare looks |
+| US-09 | user | to download an A4 PDF | I can apply |
+| US-10 | user | AI-generated summary options | I overcome blank-page |
+| US-11 | user | stronger bullets without fake claims | my resume stays honest |
+| US-12 | user | to see AI output as suggestions I approve | I stay in control |
+| US-13 | user | an ATS score with reasons | I know what to fix |
+| US-14 | user | to paste a JD and see missing skills | I tailor my resume |
+| US-15 | user | to duplicate a resume for a specific job | I keep versions |
+| US-16 | user | to rename and delete resumes | I stay organised |
+| US-17 | user | a dashboard with completion % | I see what needs work |
+| US-18 | user | to change my password / delete my account / export data | I control my data |
+| US-19 | mobile user | to edit and preview on my phone | I can work anywhere |
+| US-20 | keyboard user | to operate the editor without a mouse | the app is accessible |
+| US-21 (S) | user | to see ATS score history | I see my improvement |
+| US-22 (S) | user | to resolve edit conflicts between tabs | I don't lose edits |
+
+## 15. User Journeys
+
+1. **First resume:** Landing → Register → Dashboard (sample resume exists) → "New resume" → choose template → fill Personal info → add Education/Skills/Projects → ✨ improve bullets (accept 2) → completion 85% → Analyze ATS → fix 3 recommendations → Download PDF.
+2. **Tailor for a job:** Dashboard → open resume → Job Matcher → paste JD → review missing skills → "Create tailored copy" → apply suggestions → re-run ATS (score ↑) → PDF.
+3. **Returning user:** Open app → silent session restore → Dashboard → duplicate resume → rename → edit → download.
+4. **AI outage:** User clicks ✨ → banner "AI unavailable — showing rule-based suggestions" → verb suggestions still work.
+
+## 16. Application Pages & Navigation
+
+| # | Page | Route | Access |
+|---|---|---|---|
+| 1 | Landing | `/` | Public |
+| 2 | Login | `/login` | Public (redirect if signed in) |
+| 3 | Register | `/register` | Public |
+| 4 | Dashboard | `/dashboard` | Auth |
+| 5 | Resume builder | `/resumes/:id/edit` | Auth |
+| 6 | Template gallery | `/templates` | Auth (also linked from landing as public previews section) |
+| 7 | ATS analyzer | `/resumes/:id/ats` (resume picker at `/ats`) | Auth |
+| 8 | Job matcher | `/resumes/:id/job-match` (picker at `/job-match`) | Auth |
+| 9 | AI assistant | `/resumes/:id/assistant` (picker at `/assistant`) | Auth |
+| 10 | Profile/settings | `/settings` | Auth |
+| — | Print page (internal) | `/print` and `/resumes/:id/print` | Print token / Auth |
+| — | 404 | `*` | Public |
+
+Navigation: public top navbar (Logo, Features, Templates, How it works, Login, Get started). App shell: left sidebar (Dashboard, Templates, ATS Analyzer, Job Matcher, AI Assistant, Settings) + topbar (user menu, logout). Sidebar collapses to a bottom tab bar/drawer on mobile. **Every link and button must work** (see AGENT.md "no placeholder UI").
+
+## 17. UI/UX Requirements
+
+- Style references: Linear, Notion, Vercel — clean, minimal, generous whitespace.
+- Tokens: background `#FFFFFF`/`#F9FAFB`, borders `#E5E7EB`, text `#111827`/`#4B5563`, primary indigo `#4F46E5` (hover `#4338CA`), success `#059669`, warning `#D97706`, danger `#DC2626`. Radius: cards 12 px, inputs/buttons 8 px. Shadows: `shadow-sm` default, `shadow-md` on hover/popovers. Transitions 150–200 ms.
+- Typography (app UI): Inter, 14/16 px base, clear heading scale.
+- States required for every async view: loading skeleton, empty, error with retry, success toast.
+- AI content is always visually marked (sparkle badge + dashed indigo border).
+- Landing page: hero (headline, subcopy, 2 CTAs, product screenshot-like **live** template preview), feature highlights (6), how it works (3 steps), template previews (4, real components with sample data), CTA band, footer.
+- Dark mode: not required (out of scope).
+
+## 18. Database-Related Requirements
+
+Collections: `users`, `resumes`, `refreshTokens`, `analyses`, `aiUsage`. Embedded sections inside `resumes`; indexes on `{userId, updatedAt}`; unique index on `users.email` (lowercased); TTL indexes on `refreshTokens.expiresAt` and `aiUsage.createdAt` (30 days). Details in ARCHITECTURE.md §15–16.
+
+## 19. API & Security Requirements
+
+**API:** REST under `/api/v1`, JSON, uniform envelope `{ data }` / `{ error }`, proper status codes, pagination on lists, idempotent PATCH with `baseRevision`. Complete table in ARCHITECTURE.md §14.
+
+**Security:** bcrypt; JWT with strict algorithm; refresh-token rotation with reuse detection; httpOnly cookies; Helmet headers; CORS allow-list; rate limits (auth, AI, global); body size limit 1 MB; Zod validation; NoSQL-injection-safe (typed schemas, no raw query objects from clients); output rendered as text in React (no `dangerouslySetInnerHTML`); PDF renderer restricted to the app's own origin with single-use, 60-second print tokens; prompt-injection mitigations for JD/resume text; dependency audit in CI; secrets only via environment.
+
+## 20. MVP Scope
+
+**In MVP (all Must + the Should items marked S where schedule permits):** AUTH-01–07, RES-01–07, 09–12, TPL-01,02,04–07, AI-01–08 (with fallback), ATS-01–07, 09, JD-01–04, 06, PDF-01–05, DASH-01–04, 06, Settings, Landing.
+
+**Should (do if time remains after Phase 7):** RES-08, TPL-03, ATS-08, JD-05, DASH-05.
+
+## 21. Future Enhancements
+
+Forgot-password & email verification · Google/GitHub OAuth · DOCX export · cover-letter generator · public shareable resume link · LinkedIn import / PDF upload parsing · multi-language resumes · dark mode · interview-question generator · team/college placement-cell accounts · analytics dashboard · real-time collaboration.
+
+## 22. Success Metrics
+
+Objectives O1–O6 (§8) plus: 100% of MVP acceptance criteria demonstrated in the final demo; server test coverage ≥ 70% overall and ≥ 90% on the ATS engine; zero high-severity `npm audit` findings at submission; zero console errors in the main user journey; all pages usable at 360 px width.
+
+## 23. Constraints & Assumptions (engineering decisions made to remove ambiguity)
+
+1. **Free-tier friendly:** MongoDB Atlas M0, free LLM tier (Google Gemini API via AI Studio by default), free hosting tiers. No paid dependency is required.
+2. **LLM provider is pluggable** (`gemini`, `openai`-compatible, `mock`); model names come from env vars because they change over time.
+3. **ATS "score" is a heuristic.** No real company ATS is emulated; the UI says so.
+4. **PDF engine = headless Chromium (Puppeteer)** rendering the real React templates → fidelity + selectable text. Browser-print fallback exists because Chromium hosting on free tiers can be constrained.
+5. **Single-origin deployment illusion:** the frontend host proxies `/api/*` to the backend so cookies are first-party and CORS is unnecessary in production.
+6. **No email infrastructure in MVP** → no verification/forgot-password; users can change password while signed in.
+7. **Plain-text bullets** (no rich text) for ATS safety and simpler PDF.
+8. **Sample resume is real persisted data** (created by the backend at registration), not frontend mock data.
+9. **English-language resumes** only; Latin-script fonts bundled.
+10. Resume content is stored as structured JSON, not as generated HTML.
+11. Single deployed backend instance (in-memory rate-limit stores acceptable).
+12. Desktop-class Chromium available in the deployment environment (Docker image) for PDF.
+
+## 24. Out-of-Scope Features
+
+Payments/subscriptions · social login · email verification & password reset · DOCX/Google-Docs export · resume parsing from uploaded files · job-board integration or auto-apply · real company ATS integrations · image/photo upload · rich-text editing · real-time collaboration · native mobile apps · i18n · admin panel · dark mode.

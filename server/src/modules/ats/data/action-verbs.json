@@ -1,0 +1,78 @@
+{
+  "categories": {
+    "development": [
+      "Architected", "Engineered", "Developed", "Implemented", "Built", "Constructed",
+      "Designed", "Authored", "Programmed", "Configured", "Deployed", "Refactored"
+    ],
+    "leadership": [
+      "Spearheaded", "Led", "Directed", "Orchestrated", "Coordinated", "Guided",
+      "Mentored", "Managed", "Supervised", "Championed", "Facilitated"
+    ],
+    "optimization": [
+      "Optimized", "Accelerated", "Streamlined", "Maximized", "Reduced", "Automated",
+      "Enhanced", "Boosted", "Overhauled", "Upgraded", "Scaled"
+    ],
+    "analysis": [
+      "Analyzed", "Evaluated", "Investigated", "Audited", "Identified", "Synthesized",
+      "Benchmarked", "Formulated", "Diagnosed", "Discovered", "Mapped"
+    ],
+    "collaboration": [
+      "Collaborated", "Partnered", "Negotiated", "Integrated", "Liaised", "Contributed",
+      "Co-authored", "United", "Supported"
+    ],
+    "achievement": [
+      "Achieved", "Pioneered", "Established", "Generated", "Attained", "Awarded",
+      "Delivered", "Published", "Exceeded", "Secured"
+    ]
+  },
+  "all": [
+    "accelerated", "achieved", "acquired", "adapted", "addressed", "administered",
+    "advanced", "advised", "advocated", "allocated", "amplified", "analyzed",
+    "applied", "appointed", "appraised", "approved", "architected", "arranged",
+    "assembled", "assessed", "assigned", "assisted", "attained", "audited",
+    "authored", "automated", "benchmarked", "boosted", "briefed", "budgeted",
+    "built", "calculated", "calibrated", "campaigned", "centralized", "championed",
+    "clarified", "classified", "co-authored", "coached", "collaborated", "collected",
+    "compiled", "composed", "computed", "conceptualized", "conducted", "configured",
+    "consolidated", "constructed", "consulted", "contributed", "converted", "coordinated",
+    "counseled", "created", "critiqued", "cultivated", "customized", "debugged",
+    "decreased", "defined", "delegated", "delivered", "demonstrated", "deployed",
+    "designed", "detailed", "detected", "determined", "developed", "devised",
+    "diagnosed", "directed", "discovered", "dispatched", "drafted", "drove",
+    "earned", "edited", "educated", "elevated", "eliminated", "enabled",
+    "enacted", "encouraged", "engineered", "enhanced", "enlarged", "enlisted",
+    "ensured", "established", "estimated", "evaluated", "examined", "exceeded",
+    "executed", "expanded", "expedited", "experimented", "explored", "facilitated",
+    "financed", "fine-tuned", "focused", "forecasted", "formulated", "founded",
+    "fostered", "fulfilled", "gained", "gathered", "generated", "governed",
+    "guided", "handled", "headed", "hired", "identified", "illustrated",
+    "implemented", "improved", "improvised", "increased", "indexed", "influenced",
+    "informed", "initiated", "innovated", "inspected", "inspired", "installed",
+    "instituted", "instructed", "integrated", "interpreted", "interviewed", "introduced",
+    "invented", "investigated", "launched", "lead", "led", "leveraged",
+    "liaised", "licensed", "localized", "located", "maintained", "managed",
+    "manufactured", "mapped", "marketed", "maximized", "measured", "mediated",
+    "mentored", "merged", "minimized", "modeled", "moderated", "modernized",
+    "modified", "monitored", "motivated", "navigated", "negotiated", "networked",
+    "neutralized", "nominated", "nurtured", "obtained", "operated", "optimized",
+    "orchestrated", "organized", "originated", "outperformed", "overhauled", "oversaw",
+    "partnered", "performed", "persuaded", "piloted", "pioneered", "planned",
+    "prepared", "presented", "presided", "prioritized", "processed", "produced",
+    "programmed", "projected", "promoted", "proposed", "published", "purchased",
+    "quantified", "queried", "raised", "ranked", "rated", "re-engineered",
+    "reached", "realigned", "rebuilt", "reclaimed", "recommended", "reconciled",
+    "recorded", "recruited", "redesigned", "reduced", "refactored", "refined",
+    "reformed", "regulated", "rehabilitated", "reinforced", "reorganized", "repaired",
+    "replaced", "reported", "represented", "researched", "resolved", "restructured",
+    "retrieved", "revamped", "reviewed", "revised", "revitalized", "routed",
+    "saved", "scaled", "scheduled", "screened", "scrutinized", "secured",
+    "selected", "separated", "served", "shaped", "simplified", "simulated",
+    "solved", "spearheaded", "specialized", "specified", "standardized", "stimulated",
+    "streamlined", "strengthened", "structured", "studied", "supervised", "supplemented",
+    "supplied", "supported", "surpassed", "surveyed", "sustained", "synthesized",
+    "systematized", "tabulated", "targeted", "taught", "tested", "tracked",
+    "trained", "transcribed", "transformed", "translated", "triumphed", "troubleshot",
+    "unified", "united", "updated", "upgraded", "utilized", "validated",
+    "valued", "verified", "visualized", "won", "wrote", "yielded"
+  ]
+}

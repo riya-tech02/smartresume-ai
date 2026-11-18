@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: smartresume-ai-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: PRINT_TOKEN_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: COOKIE_SECURE
+        value: true
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: AI_PROVIDER
+        value: mock

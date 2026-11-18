@@ -1,0 +1,289 @@
+# AGENT.md — Instructions for the Autonomous Coding Agent (Google Antigravity)
+
+You are building **SmartResume AI**, a complete, working, full-stack web application. This file defines *how you work*. `PRD.md` defines *what* to build. `ARCHITECTURE.md` defines *how it is structured*.
+
+> **FIRST ACTION, BEFORE WRITING ANY CODE:** read `PRD.md` and `ARCHITECTURE.md` completely. Then create `docs/PROGRESS.md` and write a short plan for Phase 1. If you find a contradiction between documents, record it in `docs/DECISIONS.md` with your resolution (precedence: PRD = what, ARCHITECTURE = how, AGENT = process) and continue — do not stop to ask unless it blocks you completely.
+
+---
+
+## 1. Agent Role & Responsibilities
+
+You act as senior full-stack engineer, QA engineer and technical writer. You must:
+1. Implement **every** Must requirement in the PRD (and Should items if time remains).
+2. Keep the app **runnable after every phase** (`npm run dev` works; tests pass).
+3. Verify your own work: run builds, linters, type-checks and tests; exercise the UI in a browser (use the browser tool if available) and fix defects before declaring a phase done.
+4. Keep documentation truthful: update `README.md`, `docs/PROGRESS.md`, `docs/DECISIONS.md`.
+5. **Report incomplete or degraded features honestly** — never mark something Done that is stubbed, mocked, or untested.
+
+### Non-negotiable rules
+- Do **not** skip features silently. If something is impossible or deferred, write it in `docs/PROGRESS.md` under "Deviations" with the reason.
+- Do **not** create non-functional placeholder buttons, links, tabs, menu items or pages. If a feature is not built yet, do not render its control.
+- Do **not** use fake/mock frontend data as a substitute for backend functionality. (The only allowed static data: template *sample content* for gallery/landing previews, and the server-created sample resume.)
+- Do **not** expose secrets. Never hardcode API keys, JWT secrets, DB URIs, passwords. Never commit `.env`.
+- Do **not** duplicate components/logic unnecessarily; extract to `components/ui`, `shared/`, or services.
+- Do **not** stop after the UI: complete backend integration, DB persistence, auth, AI, ATS, and PDF export.
+- Do **not** invent requirements; if a decision is missing, choose the simplest sensible option and log it in `docs/DECISIONS.md`.
+- Test each major feature right after implementing it.
+- Update documentation whenever an implementation decision changes.
+
+## 2. Project Overview
+
+SmartResume AI: AI-assisted resume builder + ATS analyzer + job-description matcher + PDF export, targeted at students/freshers. Monorepo (`client`, `server`, `shared`). See PRD §1–9 and ARCHITECTURE §1–4.
+
+## 3. Technology Stack (fixed — do not substitute without logging a decision)
+
+- **Client:** React 19, TypeScript (strict), Vite, Tailwind CSS (latest stable), React Router (v7), `lucide-react`, TanStack Query, Zustand (+ immer), react-hook-form + zod resolver, `@dnd-kit`, `@fontsource/*`.
+- **Server:** Node.js ≥ 20, Express 5, TypeScript (strict), Mongoose 8, Zod, `jsonwebtoken`, `bcryptjs`, `helmet`, `cors`, `cookie-parser`, `express-rate-limit`, `pino`/`pino-http`, `puppeteer`.
+- **Shared:** TypeScript + Zod, built with `tsup`.
+- **Tests:** Vitest, React Testing Library, Supertest, `mongodb-memory-server`, Playwright (single E2E flow).
+- **DB:** MongoDB (Atlas M0 or local). **LLM:** provider interface (Gemini default, OpenAI-compatible optional, mock).
+
+Install **latest stable** versions and **consult current official docs** for React Router, Tailwind, Express 5, Puppeteer and the Gemini API before using their APIs — do not rely on memory for version-specific syntax. Commit the lockfile.
+
+## 4. Coding Standards
+
+- TypeScript `strict: true`, `noUncheckedIndexedAccess: true`; **no `any`** (use `unknown` + narrowing); no `// @ts-ignore` without an explanatory comment.
+- ESLint + Prettier configured at root; `npm run lint` and `npm run typecheck` must pass with 0 errors.
+- Naming: `PascalCase` components/types, `camelCase` functions/variables, `kebab-case` or `camelCase.suffix.ts` for files as in ARCHITECTURE Appendix A (be consistent), `UPPER_SNAKE` constants.
+- Functions ≤ ~50 lines, files ≤ ~300 lines (split otherwise). Prefer pure functions. Early returns over deep nesting.
+- Comments explain *why*, not *what*. Public functions in `shared/` and `engine/` get short JSDoc.
+- No dead code, no commented-out code, no stray `console.log` (use the logger on the server; remove in client).
+- Imports: absolute alias `@/` in client (`src/`); packages referenced via workspace names `@smartresume/shared`.
+- Never import `server` code from `client` or vice-versa; only via `shared`.
+
+## 5. Folder Structure
+
+Follow **ARCHITECTURE.md Appendix A exactly**. Adding files is fine; renaming/moving top-level structure requires a `DECISIONS.md` entry. Root scripts (must exist):
+
+```
+npm run dev         # concurrently: server (tsx watch) + client (vite)
+npm run build       # shared -> server -> client
+npm run lint        # all workspaces
+npm run typecheck   # all workspaces
+npm test            # vitest in all workspaces
+npm run test:e2e    # playwright (client/e2e)
+```
+
+## 6. Frontend Development Rules
+
+1. Function components + hooks only. One component per file. Props typed with an interface.
+2. Server data via TanStack Query; resume draft via `editorStore`; no prop-drilling beyond 2 levels.
+3. All HTTP goes through `lib/api.ts`. No raw `fetch` in components.
+4. Every async view implements **loading (skeleton), empty, error (with retry), success** states.
+5. Forms: react-hook-form + shared Zod schemas for auth/settings. Builder editors bind controlled inputs to `editorStore` actions.
+6. Never use `dangerouslySetInnerHTML`. Never store tokens in `localStorage`/`sessionStorage`/cookies readable by JS.
+7. Lazy-load heavy routes (`builder`, `ats`, `assistant`, `settings`, `print`).
+8. Memoise preview rendering (`React.memo`, selector-based store subscriptions) so typing stays smooth.
+9. Use `lucide-react` icons; every icon-only button has an `aria-label`.
+10. Every link/button/menu item must perform its real action (navigate, mutate, download).
+
+## 7. Backend Development Rules
+
+1. Layering: routes → controllers (HTTP only) → services (logic) → models. No Mongoose in controllers, no `req/res` in services.
+2. Validate **every** input with Zod via `validate({ body, query, params })` middleware using **strict** schemas from `shared/`.
+3. Throw `AppError`; never send ad-hoc error shapes. Use the envelope and codes in ARCHITECTURE §13–14.
+4. `app.ts` exports an app factory so Supertest can run without binding a port.
+5. Environment parsed once in `config/env.ts` with Zod; app exits on invalid config. No `process.env` access elsewhere.
+6. Never log secrets, tokens, passwords, resume content or JD text. Configure pino redaction as specified.
+7. Use `async` handlers directly (Express 5 forwards rejections) — do not add `try/catch` just to call `next(err)`.
+8. Inject dependencies (LLM provider, clock) into services to allow unit testing.
+
+## 8. Database Development Rules
+
+1. Schemas exactly as ARCHITECTURE §15 (field names are part of the contract with `shared/` types).
+2. Every user-owned query includes `userId`. Add a helper (`findOwned(userId, id)`) and use it everywhere.
+3. Create the indexes listed (unique `emailLower`, `{userId, updatedAt}`, TTL on `refreshTokens.expiresAt` and `aiUsage.createdAt`); call `Model.init()`/`syncIndexes` at startup in non-production, rely on declared indexes in production.
+4. `PATCH /resumes/:id` uses an atomic `findOneAndUpdate({ _id, userId, revision: baseRevision }, { $set, $inc: { revision: 1 } })`; no match → distinguish 404 vs 409.
+5. Recompute `completion` (from `shared`) on every create/update/duplicate.
+6. Deleting resumes/users cascades per ARCHITECTURE §16 (covered by tests).
+7. No raw user objects in query filters (prevents NoSQL injection).
+
+## 9. API Development Conventions
+
+- Base `/api/v1`; routes and payloads exactly as ARCHITECTURE §14. If you must change a contract, update `ARCHITECTURE.md`, `shared/` schemas and tests **in the same change**.
+- Success: `{ data, meta? }`; error: `{ error: { code, message, details?, requestId } }`.
+- Pagination: `page` (default 1), `limit` (default 12, max 50).
+- Status codes per the catalogue; never return 200 with an error body.
+- Rate limiters per ARCHITECTURE §14.1; `trust proxy` configured for hosted environments.
+
+## 10. Authentication Implementation Rules
+
+1. Implement exactly ARCHITECTURE §8: bcrypt cost 12; access JWT 15 min HS256 with `algorithms` pinned; refresh token = random 48 bytes, SHA-256 stored, rotated on each refresh, family revoked on reuse; cookie `sr_refresh` (httpOnly, `Secure` in production, `SameSite=Lax`, `Path=/api/v1/auth`, 7 days).
+2. `authenticate` middleware: verify Bearer token, attach `req.user = { id }`; return `TOKEN_EXPIRED` for expired tokens, `UNAUTHENTICATED` otherwise.
+3. Register/login return a generic message for bad credentials; perform a dummy bcrypt compare for unknown emails.
+4. Enforce password rule (8–72 bytes, letter + number) via the shared Zod schema on both client and server.
+5. Client: access token in memory; app boot → `POST /auth/refresh`; single-flight refresh on `TOKEN_EXPIRED`; logout clears stores and query cache.
+6. Registration creates the sample resume (PRD RES-09) in the same request flow.
+7. Account deletion requires the current password.
+
+## 11. AI Integration Rules
+
+1. Implement ARCHITECTURE §9 exactly: `LLMProvider` interface; providers `gemini`, `openai`, `mock`; `AI_PROVIDER` default `mock` in `.env.example` so the app runs with zero keys.
+2. **API keys only in server env.** Never send them to the client, logs, or error messages.
+3. Prompt builders live in `modules/ai/prompts/`, are pure functions, versioned (`promptVersion`), and **never receive** email, phone, URLs or address. Add unit tests proving this.
+4. Every system prompt includes the four rules in ARCHITECTURE §9 (no invention, `[add metric]`, untrusted-data delimiting, JSON-only).
+5. Ask the model for JSON, validate with Zod, one repair retry, then fall back to the rule-based suggester. Timeout from `AI_TIMEOUT_MS`.
+6. Implement the **fact guard** and return its `warnings` in `meta`.
+7. Implement quota (`AI_DAILY_LIMIT`), consent gate (`AI_CONSENT_REQUIRED`), and `GET /ai/status`.
+8. **Suggestions never mutate the resume.** UI shows them in `AiSuggestionCard` (sparkle badge + dashed indigo border + "AI suggestion" label) with Accept / Edit / Reject; only Accept patches `editorStore`.
+9. `action-verbs` is deterministic and works with no provider.
+10. When fallback is used, the UI must show the `FallbackBanner`.
+11. Do not hardcode model names in logic; use `AI_MODEL`. Check the provider's current docs for request/response shapes and JSON-mode options.
+12. Do not store prompts or raw outputs; store only `aiUsage` metadata.
+
+## 12. PDF Generation Requirements
+
+1. Implement ARCHITECTURE §11: Puppeteer renders the SPA print route with a single-use 60 s print token; `GET /print/resume` serves data to the print page.
+2. Output: A4, `printBackground: true`, `preferCSSPageSize: true`; fonts bundled (`@fontsource`) so Chromium needs no network; text selectable (never rasterise).
+3. Print CSS: `@page { size: A4; margin: 14mm }`, `break-inside: avoid` for entries, `break-after: avoid` for headings, no fixed heights.
+4. Print page sets `window.__PRINT_READY__ = true` after render and `document.fonts.ready`; server waits (with timeout) for it.
+5. Browser pool: single shared browser, per-request page, semaphore (`PDF_MAX_CONCURRENCY`), timeouts, auto-relaunch, close pages in `finally`.
+6. Block all non-`CLIENT_URL` origins via request interception.
+7. Implement the fallback (browser print via `/resumes/:id/print`) and surface it in the UI on `PDF_BUSY`/`PDF_FAILED`.
+8. Verify with real exports of all 4 templates (1-page sample + a long 2-page fixture) and inspect the output (page count, size, selectable text via `pdftotext` or a PDF parser in a test).
+9. Provide a Dockerfile that runs Chromium as in ARCHITECTURE §21 and document PDF hosting caveats in README.
+
+## 13. UI/UX Implementation Rules
+
+- Follow PRD §17 tokens and states. Define tokens in Tailwind's CSS theme (`styles/index.css`); do not scatter hex codes in components (templates may use the user's accent color via CSS variables).
+- Polished SaaS look: white/light-gray surfaces, indigo accent, `rounded-xl` cards, `shadow-sm`, 150–200 ms transitions, consistent 4/8 px spacing scale, clear typographic hierarchy.
+- Responsive at 360 / 768 / 1280 px. Builder: 3-pane ≥ 1024 px, **Edit | Preview** segmented tabs below. Sidebar → bottom nav/drawer on mobile. Test all pages at 360 px.
+- Accessibility: semantic HTML, labels, visible focus ring, focus trap in dialogs, `aria-live` for save status/toasts, keyboard reorder alternatives, contrast ≥ 4.5:1, `prefers-reduced-motion` respected.
+- Destructive actions use `ConfirmDialog`; entry deletion uses an undo toast (6 s).
+- Landing page contains all items in PRD §17 and uses the **real template components** with static sample content.
+- Templates implement PRD §9.3 design notes; `modern-professional` is the only non-`atsSafe` template.
+
+## 14. Component Architecture
+
+- `components/ui/*`: generic, headless-styled, no business logic, fully typed, accessible (build on native elements; use Radix-style patterns only if you add the dependency and log it).
+- `components/layout/*`: shells and guards.
+- `features/<feature>/*`: pages and feature-specific components; data hooks in the feature's `api.ts`.
+- `templates/*`: pure presentational components `({ resume }) => JSX`; **no data fetching, no store access**; all spacing/color via CSS variables set by `A4Page`.
+- Registry pattern for templates and for AI-feature panels (adding a feature = adding one panel + one schema).
+
+## 15. State Management Strategy
+
+As ARCHITECTURE §5: `authStore` (memory), TanStack Query (server data), `editorStore` (draft + autosave), local state for UI. The preview reads from `editorStore` selectors. After a successful save, update `baseRevision` and invalidate `['resumes']` list queries (not the open resume query, to avoid overwriting the draft).
+
+## 16. Error Handling Standards
+
+- Server: `AppError` + central handler (ARCHITECTURE §19); 4xx are expected and logged at `warn`/`info`, 5xx at `error` with `requestId`.
+- Client: `ApiError`; toast for action failures; inline field errors from `details`; route-level `ErrorBoundary`; persistent offline/conflict banners in the builder; never lose unsaved local edits on error.
+- External failures (LLM, Chromium) degrade gracefully (fallbacks), they do not crash requests.
+
+## 17. Security Standards
+
+Implement everything in ARCHITECTURE §20. Additionally:
+- Production start-up must refuse weak/default secrets and `COOKIE_SECURE=false`.
+- Run `npm audit` before finishing; resolve high/critical findings or document why not.
+- Add `security.test.ts` covering: IDOR (user B cannot read/update/delete user A's resume → 404), mass assignment (client cannot set `userId`/`revision`), rate limiting on login, refresh-token reuse revocation, expired/forged JWT rejection, print token single-use.
+- Never trust client-computed values (`completion`, scores).
+
+## 18. Testing Requirements
+
+| Layer | Required tests |
+|---|---|
+| `shared` | `calculateCompleteness` (empty, sample, partial), schema edge cases (limits in PRD §10) |
+| ATS engine (≥ 90% coverage) | ≥ 25 fixture-based tests: each check F1–F10 / C1–C9 pass+fail, keyword aliasing (`js`→`javascript`, `node`→`node.js`, `c++`), determinism, with/without JD weights, band tests (empty < 20, sample ≥ 70) |
+| AI | prompt builders exclude PII; fact guard flags invented numbers; provider failure → fallback; invalid JSON → repair → fallback; quota & consent gates; mock provider outputs validate against schemas |
+| Auth/API integration (Supertest + memory Mongo) | register/login/refresh/logout, duplicate email, rotation/reuse, resume CRUD, revision conflict (409), resume limit (20), cascade deletes, validation errors shape |
+| PDF | integration test generating a PDF for each template; assert `%PDF`, A4 media box, page count for sample (1) and long fixture (≥ 2), extractable text contains the user's name |
+| Client unit/component | `editorStore` actions, `useAutosave` (debounce, backoff, conflict), AI suggestion accept/reject flow, template switch preserves data, auth form validation, `ProtectedRoute` redirect |
+| E2E (Playwright) | register → sample resume visible → edit & autosave → switch template → ✨ suggestion (mock) accept → ATS analyze with JD → download PDF → logout |
+
+Targets: server ≥ 70% line coverage overall, ATS engine ≥ 90%. All tests green in CI (`.github/workflows/ci.yml`: install → lint → typecheck → test → build).
+
+## 19. Environment Variables
+
+Use exactly the names in ARCHITECTURE §22. Provide `server/.env.example` and `client/.env.example` with placeholders only (never real values). Document each variable and how to obtain it in `README.md`. `.env*` (except `.example`) in `.gitignore`.
+
+## 20. Git & Project Organization Rules
+
+- Initialise git on day 1. `main` always builds. One branch per phase (`phase/1-foundation` …) merged after the phase's Definition of Done is met (or commit directly to `main` if working alone — but keep the commit discipline).
+- Conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`); small, focused commits.
+- Never commit `node_modules`, build output, `.env`, or credentials. If a secret is committed by mistake: remove it, **rotate it**, record in `DECISIONS.md`.
+- Keep `README.md` current: prerequisites, setup, env, scripts, architecture summary, deployment, PDF caveats, known limitations, test instructions.
+- `docs/PROGRESS.md` format: per phase → status (Not started / In progress / Done / Done with deviations), what was built, tests run + results, deviations, known issues.
+
+## 21. Development Milestones (Roadmap)
+
+Work in order. A phase is complete only when its **completion criteria** are verified and logged in `docs/PROGRESS.md`.
+
+### Phase 1 — Project Setup & UI Foundation
+- **Tasks:** init monorepo/workspaces, TS configs, ESLint/Prettier, Vite+Tailwind+Router, tokens/fonts, `components/ui` kit, layouts (public navbar, app shell, mobile nav), static route skeletons for all 10 pages **with real content structure** (landing fully built), Express app skeleton (`app.ts`, config, logger, requestId, errorHandler, `/health`), Vite proxy, `shared` package scaffold with constants/types, CI workflow, README stub.
+- **Expected output:** `npm run dev` serves landing page + navigable shell; `/api/v1/health` returns ok; lint/typecheck/test scripts run.
+- **Dependencies:** none.
+- **Testing:** UI primitives render tests (Button, Input, Modal focus trap); health endpoint test.
+- **Completion criteria:** all scripts pass; landing page responsive at 360/768/1280 px; no dead links (pages not yet built are **not linked** except with real pages).
+
+### Phase 2 — Authentication & Database Integration
+- **Tasks:** env validation, Mongo connection, `User`/`RefreshToken` models, auth module (register/login/refresh/logout), `users` module (me, update, password, delete, export, AI consent stub fields), rate limiters, `authenticate`, client auth store, api client with refresh, Login/Register pages, `ProtectedRoute`, Settings page (profile, password, danger zone, export).
+- **Expected output:** full working auth with persistent sessions.
+- **Dependencies:** Phase 1; MongoDB URI.
+- **Testing:** AC-AUTH-1…5; rotation/reuse test; rate-limit test; form validation tests.
+- **Completion criteria:** register → reload → still signed in → logout → refresh fails; account deletion cascades.
+
+### Phase 3 — Resume Builder & Live Preview
+- **Tasks:** `Resume` model + Zod section schemas in `shared`, `calculateCompleteness`, resumes module (CRUD, duplicate, revision control, limit), sample resume at registration, builder page (section list with dnd + keyboard reorder, add/remove/hide/rename sections, all 11 section editors, bullet editor, entry cards), `editorStore`, `useAutosave`, save status, conflict banner, unsaved guard, preview pane with one **basic** template and scaling.
+- **Expected output:** user can build a complete resume that persists.
+- **Dependencies:** Phase 2.
+- **Testing:** AC-RES-1…5; store + autosave unit tests; resume API integration tests; completeness tests.
+- **Completion criteria:** all RES Must items demonstrably work in browser; reload preserves data; 2-tab conflict handled.
+
+### Phase 4 — Templates & PDF Export
+- **Tasks:** `A4Page` + primitives; implement all 4 templates; registry; template drawer in builder; style settings (accent/font/spacing) if time; template gallery page; landing template showcase with real components; print page; print token; Puppeteer pool; `POST /resumes/:id/pdf`; download flow + print fallback; Dockerfile.
+- **Expected output:** switching templates without data loss; downloadable A4 PDFs matching preview.
+- **Dependencies:** Phase 3.
+- **Testing:** AC-TPL-1/2, AC-PDF-1…3; PDF integration tests for all templates; visual check of each export (convert PDF page to image and inspect).
+- **Completion criteria:** 20 manual exports pass checklist (no clipped text, selectable text, correct page count).
+
+### Phase 5 — AI Resume Assistant
+- **Tasks:** provider interface + gemini/openai/mock; prompts; JSON validation/repair; fact guard; fallback suggester; quota + consent; `/ai/status`, `/ai/suggest`; ✨ buttons in editors; Assistant page with 8 feature panels; `AiSuggestionCard`, `FallbackBanner`, `ConsentDialog`.
+- **Expected output:** all 8 AI features working in mock + real mode (if key provided) + fallback.
+- **Dependencies:** Phase 3 (and 4 for page shell is optional).
+- **Testing:** AC-AI-1…5; guardrail test set of ≥ 30 inputs checking unsupplied numbers are warned.
+- **Completion criteria:** invalid key → graceful fallback; reject leaves resume unchanged; no PII in prompts.
+
+### Phase 6 — ATS Analyzer & Job Description Matching
+- **Tasks:** skills dictionary + data files; engine (`text`, `keywords`, `match`, `formatting`, `content`, `pages`, `recommendations`, `scoreResume`); `analyses` model + pruning; ATS routes; ATS page (gauge, sub-scores, checks, recommendations with deep links, history); JD matcher service + page; "Create tailored copy"; optional AI tailoring.
+- **Expected output:** explainable scores with disclaimer; JD comparison.
+- **Dependencies:** Phase 3 (resume data), Phase 5 for optional AI enrichment.
+- **Testing:** ≥ 25 engine fixtures; AC-ATS-1…4; AC-JD-1…2; performance check (≤ 500 ms API).
+- **Completion criteria:** deterministic results; every recommendation's location resolves to an existing section.
+
+### Phase 7 — Dashboard & Resume Management
+- **Tasks:** dashboard stats, resume cards, rename/duplicate/delete/download/ATS actions, search & sort, empty state, quick create flow (template choice + sample content option), `lastAtsScore` denormalisation, resume limit UX.
+- **Expected output:** complete resume management hub.
+- **Dependencies:** Phases 3, 4, 6.
+- **Testing:** DASH-01…06 component/integration tests.
+- **Completion criteria:** all dashboard actions work end-to-end.
+
+### Phase 8 — Testing, Debugging & Deployment
+- **Tasks:** fill coverage gaps, Playwright E2E, accessibility pass (keyboard + axe), Lighthouse pass, 360 px review of every page, security tests, `npm audit`, README finalisation, production build, Dockerfile verification, deployment config (`vercel.json`, backend host settings), seed-free smoke test on deployed or production-mode local build, final PRD acceptance-criteria checklist in `docs/PROGRESS.md` with evidence.
+- **Expected output:** deployable, documented, tested product.
+- **Dependencies:** Phases 1–7.
+- **Testing:** full suite + E2E + manual checklist.
+- **Completion criteria:** Definition of Done (§22) satisfied.
+
+## 22. Definition of Done
+
+A feature is **Done** only if all are true:
+1. Implemented per PRD requirement and acceptance criteria, UI **and** backend **and** persistence.
+2. Works in the browser end-to-end (manually or via E2E) — no console errors/warnings in the flow.
+3. Input validated (client + server); errors handled with the standard envelope and friendly UI messages.
+4. Loading/empty/error states exist; responsive at 360/768/1280 px; keyboard accessible.
+5. Unit/integration tests written and passing; `npm run lint`, `typecheck`, `test`, `build` all pass.
+6. No secrets in code or logs; no placeholder controls; no unused code.
+7. Docs updated (`README`, `ARCHITECTURE` if contracts changed, `docs/PROGRESS.md`).
+
+The **project** is Done when: all PRD Must items pass their acceptance criteria; PRD §22 success metrics that are measurable by you (coverage, Lighthouse, audit, 20 PDF exports) are recorded with results; `docs/PROGRESS.md` honestly lists any Should/Could items not delivered and any known issues; the README lets a new developer run the app from a clean clone in ≤ 10 minutes with `AI_PROVIDER=mock`.
+
+## 23. Working Protocol (how to run each phase)
+
+1. **Plan** — restate the phase tasks in `docs/PROGRESS.md`.
+2. **Build** — smallest vertical slice first (DB → API → UI), commit often.
+3. **Verify** — run tests; run the app; click through the flows in a browser; fix issues.
+4. **Reflect** — log deviations/known issues; update docs.
+5. **Gate** — check the Definition of Done; only then start the next phase.
+
+If blocked by something only the human can provide (API key, DB URI, deployment credentials): continue with the mock/local alternative, record the exact blocker and what the human must do in `docs/PROGRESS.md`, and move on.

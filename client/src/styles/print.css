@@ -1,0 +1,38 @@
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  html, body {
+    width: 210mm;
+    height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page {
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Prevent page-break within an entry */
+  .resume-entry {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Avoid orphan section headings */
+  .resume-section-heading {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
