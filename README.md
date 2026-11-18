@@ -99,6 +99,7 @@ Alternatively, deploy the Docker image from `server/Dockerfile` to any Node 20 c
 8. Set the backend `CLIENT_URL` to that exact Vercel URL and redeploy the backend.
 
 The included `client/vercel.json` provides SPA route fallback to `index.html`.
+For Git-triggered deployments, make sure your commit email is associated with your GitHub account. You can set it with `git config user.email "<verified GitHub email or GitHub noreply address>"`.
 
 ## Push to GitHub
 
