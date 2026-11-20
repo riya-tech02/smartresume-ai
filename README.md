@@ -17,7 +17,7 @@ SmartResume AI is a full-stack resume builder for students and job seekers. It c
 ## Tech Stack
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand
-- Backend: Node.js 20, Express 5, Mongoose, Zod, JWT, Puppeteer
+- Backend: Node.js 22, Express 5, Mongoose, Zod, JWT, Puppeteer
 - Shared: Zod schemas and TypeScript types
 - Database: MongoDB
 - Tests: Vitest, Supertest, React Testing Library, Playwright
@@ -35,7 +35,7 @@ docs/     Implementation and architecture documentation
 
 Requirements:
 
-- Node.js 20+
+- Node.js 22+
 - npm 10+
 - MongoDB running locally or a MongoDB Atlas connection
 
@@ -46,7 +46,7 @@ cp client/.env.example client/.env.local
 npm run dev
 ```
 
-The frontend runs at `http://localhost:5173` and the API at `http://localhost:5000`.
+The frontend runs at `http://localhost:5173` and the API at `http://localhost:5001`.
 
 Minimum production server variables:
 

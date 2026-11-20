@@ -21,14 +21,17 @@ export function ConsentDialog({ isOpen, onClose, onConsentSuccess }: ConsentDial
   const handleAccept = async () => {
     setIsLoading(true);
     try {
-      const res = await api.patch<{ user: any }>('/users/me', {
+      const res = await api.patch<{
+        user: { preferences?: { aiConsentAcceptedAt?: string | null } };
+      }>('/users/me', {
         aiConsentAccepted: true,
       });
 
       if (user) {
         setUser({
           ...user,
-          aiConsentAcceptedAt: res.user.preferences?.aiConsentAcceptedAt || new Date().toISOString(),
+          aiConsentAcceptedAt:
+            res.user.preferences?.aiConsentAcceptedAt || new Date().toISOString(),
         });
       }
 

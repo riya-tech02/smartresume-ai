@@ -3,9 +3,10 @@ import { useEditorStore } from '../../../store/editorStore';
 import { Textarea } from '../../../components/ui/Textarea';
 import { Button } from '../../../components/ui/Button';
 import { AiSuggestionCard } from '../../../components/ai/AiSuggestionCard';
-import { api } from '../../../lib/api';
+import { requestAiSuggestion } from '../../assistant/aiApi';
 import { Sparkles, Loader2 } from 'lucide-react';
 import type { SummaryData, AiSuggestionWarning } from '@smartresume/shared';
+import { getErrorMessage } from '../../../lib/errors';
 
 interface SummaryEditorProps {
   sectionId: string;
@@ -16,6 +17,7 @@ export function SummaryEditor({ sectionId }: SummaryEditorProps) {
     s.resume?.sections.find((sec) => sec.id === sectionId)
   );
   const headline = useEditorStore((s) => s.resume?.personalInfo?.headline);
+  const resumeId = useEditorStore((s) => s.resume?.id);
   const updateSectionData = useEditorStore((s) => s.updateSectionData);
 
   const data = (section?.data || { text: '' }) as SummaryData;
@@ -38,26 +40,29 @@ export function SummaryEditor({ sectionId }: SummaryEditorProps) {
     setIsLoadingAi(true);
     setError(null);
     try {
-      const res = await api.post<{
-        summary: string;
-        warnings?: AiSuggestionWarning[];
-      }>('/ai/summary', {
-        currentSummary: currentText || undefined,
-        targetRole: headline || 'Software Engineer',
+      if (!resumeId) throw new Error('Save the resume before requesting an AI suggestion.');
+      const res = await requestAiSuggestion({
+        feature: 'summary',
+        resumeId,
+        payload: {
+          currentSummary: currentText,
+          headline: headline || 'Software Engineer',
+        },
       });
 
-      if (res.summary) {
+      const suggestion = res.suggestions[0];
+      if (suggestion) {
         setSuggestion({
           original: currentText,
-          improved: res.summary,
+          improved: suggestion.improved,
           reason: currentText
             ? 'Refined for executive clarity, active voice, and ATS keywords.'
             : 'Generated professional summary based on your profile headline.',
-          warnings: res.warnings,
+          warnings: res.meta.warnings,
         });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate summary with AI');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to generate summary with AI'));
     } finally {
       setIsLoadingAi(false);
     }

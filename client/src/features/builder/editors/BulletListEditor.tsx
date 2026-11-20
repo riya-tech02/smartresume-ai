@@ -3,8 +3,10 @@ import { Plus, Trash2, ArrowUp, ArrowDown, Sparkles, Loader2 } from 'lucide-reac
 import { Button } from '../../../components/ui/Button';
 import { Textarea } from '../../../components/ui/Textarea';
 import { AiSuggestionCard } from '../../../components/ai/AiSuggestionCard';
-import { api } from '../../../lib/api';
-import type { AiSuggestion, AiSuggestionWarning } from '@smartresume/shared';
+import { requestAiSuggestion } from '../../assistant/aiApi';
+import { getErrorMessage } from '../../../lib/errors';
+import type { AiSuggestionWarning } from '@smartresume/shared';
+import { useEditorStore } from '../../../store/editorStore';
 
 interface BulletListEditorProps {
   bullets: string[];
@@ -21,6 +23,7 @@ export function BulletListEditor({
   placeholder = 'Describe a major contribution with quantified impact (e.g. Led migration to Next.js reducing LCP by 45%)...',
   targetRole,
 }: BulletListEditorProps) {
+  const resumeId = useEditorStore((s) => s.resume?.id);
   const [activeAiIndex, setActiveAiIndex] = useState<number | null>(null);
   const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
   const [suggestion, setSuggestion] = useState<{
@@ -70,12 +73,14 @@ export function BulletListEditor({
     setLoadingIndex(index);
     setAiError(null);
     try {
-      const res = await api.post<{
-        suggestions: AiSuggestion[];
-        warnings?: AiSuggestionWarning[];
-      }>('/ai/bullets', {
-        bullets: [text],
-        targetRole: targetRole || undefined,
+      if (!resumeId) throw new Error('Save the resume before requesting an AI suggestion.');
+      const res = await requestAiSuggestion({
+        feature: 'improve-bullets',
+        resumeId,
+        payload: {
+          context: targetRole || '',
+          bullets: [text],
+        },
       });
 
       const first = res.suggestions?.[0];
@@ -85,12 +90,12 @@ export function BulletListEditor({
           original: first.original || text,
           improved: first.improved,
           reason: first.reason,
-          warnings: res.warnings,
+          warnings: res.meta.warnings,
         });
         setActiveAiIndex(index);
       }
-    } catch (err: any) {
-      setAiError(err.message || 'Failed to get AI improvement');
+    } catch (err: unknown) {
+      setAiError(getErrorMessage(err, 'Failed to get AI improvement'));
     } finally {
       setLoadingIndex(null);
     }

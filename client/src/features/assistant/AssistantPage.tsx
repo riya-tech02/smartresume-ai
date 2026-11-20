@@ -3,10 +3,13 @@ import { useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { ResumePicker } from '../common/ResumePicker';
+import { requestAiSuggestion } from './aiApi';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { AiSuggestionCard } from '../../components/ai/AiSuggestionCard';
+import { ConsentDialog } from '../../components/ai/ConsentDialog';
+import { getErrorMessage } from '../../lib/errors';
 import {
   Sparkles,
   FileText,
@@ -19,7 +22,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import type { ResumeData, AiSuggestionWarning } from '@smartresume/shared';
+import type { AiFeature, AiStatus, ResumeData, AiSuggestionWarning } from '@smartresume/shared';
 
 type ToolId =
   | 'summary'
@@ -47,6 +50,7 @@ export function AssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isConsentOpen, setIsConsentOpen] = useState(false);
 
   // Result state
   const [result, setResult] = useState<{
@@ -62,97 +66,55 @@ export function AssistantPage() {
     queryFn: async () => api.get<ResumeData>(`/resumes/${selectedResumeId}`),
     enabled: !!selectedResumeId,
   });
+  const {
+    data: aiStatus,
+    isError: isStatusError,
+    refetch: refetchAiStatus,
+  } = useQuery<AiStatus>({
+    queryKey: ['ai', 'status'],
+    queryFn: () => api.get<AiStatus>('/ai/status'),
+  });
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedResumeId) {
+      setError('Select a resume before requesting an AI suggestion.');
+      return;
+    }
+    if (isStatusError || !aiStatus) {
+      setError('Unable to check AI availability. Please retry.');
+      return;
+    }
+    if (!aiStatus.consentAccepted) {
+      setIsConsentOpen(true);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      if (activeTool === 'summary') {
-        const res = await api.post<any>('/ai/summary', {
-          currentSummary: inputText || undefined,
-          targetRole,
-        });
-        setResult({
-          original: inputText,
-          improved: res.summary,
-          reason: 'Refined for executive clarity, active voice, and impact.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'bullets') {
-        const res = await api.post<any>('/ai/bullets', {
-          bullets: [inputText],
-          targetRole,
-        });
-        const sug = res.suggestions?.[0];
-        setResult({
-          original: sug?.original || inputText,
-          improved: sug?.improved || '',
-          reason: sug?.reason || 'Enhanced with strong action verb and quantified outcome.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'project') {
-        const res = await api.post<any>('/ai/project', {
-          projectName: targetRole || 'Project',
-          projectDescription: inputText,
-          technologies: secondaryText.split(',').map((s) => s.trim()).filter(Boolean),
-        });
-        setResult({
-          original: inputText,
-          improved: res.rewrite,
-          reason: 'Restructured with architectural context and measurable results.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'skills') {
-        const currentSkills = inputText.split(',').map((s) => s.trim()).filter(Boolean);
-        const res = await api.post<any>('/ai/skills', {
-          targetRole,
-          currentSkills,
-        });
-        const skillsList = res.suggestions?.map((s: any) => `${s.skill} (${s.category || 'Core'})`).join('\n') || '';
-        setResult({
-          original: inputText,
-          improved: skillsList,
-          reason: 'High-frequency keywords found in matching job descriptions.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'achievements') {
-        const res = await api.post<any>('/ai/achievements', {
-          context: inputText,
-          targetRole,
-        });
-        setResult({
-          original: inputText,
-          improved: res.suggestions?.join('\n\n') || '',
-          reason: 'Quantified metrics and measurable impact points added.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'grammar') {
-        const res = await api.post<any>('/ai/grammar', {
-          text: inputText,
-        });
-        setResult({
-          original: inputText,
-          improved: res.corrected,
-          reason: res.notes || 'Grammar and passive voice improved.',
-          warnings: res.warnings,
-        });
-      } else if (activeTool === 'tailor') {
-        const res = await api.post<any>('/ai/tailor', {
-          resumeContent: inputText,
-          jobDescription: secondaryText,
-        });
-        setResult({
-          original: inputText,
-          improved: res.tailoredResume || res.recommendations?.join('\n') || '',
-          reason: 'Aligned phrasing and keyword density with the target job posting.',
-          warnings: res.warnings,
-        });
-      }
-    } catch (err: any) {
-      setError(err.message || 'AI request failed');
+      const { feature, payload } = getToolRequest(activeTool, {
+        inputText,
+        secondaryText,
+        targetRole,
+      });
+      const response = await requestAiSuggestion({
+        feature,
+        resumeId: selectedResumeId,
+        payload,
+      });
+      const suggestions = response.suggestions;
+      const firstSuggestion = suggestions[0];
+      setResult({
+        original: firstSuggestion?.original || inputText,
+        improved: suggestions.map((suggestion) => suggestion.improved).join('\n\n'),
+        reason: suggestions.map((suggestion) => suggestion.reason).filter(Boolean).join(' '),
+        warnings: response.meta.warnings,
+      });
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'AI request failed'));
     } finally {
       setIsLoading(false);
     }
@@ -192,8 +154,13 @@ export function AssistantPage() {
           <ResumePicker
             value={selectedResumeId}
             onChange={setSelectedResumeId}
-            placeholder="Load resume context (optional)..."
+            placeholder="Select a resume..."
           />
+          {resume && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Context loaded: {resume.title}
+            </p>
+          )}
         </div>
       </div>
 
@@ -302,7 +269,8 @@ export function AssistantPage() {
             <Button
               type="submit"
               variant="primary"
-              isLoading={isLoading}
+              isLoading={isLoading || !aiStatus}
+              disabled={!selectedResumeId || !aiStatus}
               leftIcon={<Sparkles className="w-4 h-4" />}
               className="w-full"
             >
@@ -352,6 +320,54 @@ export function AssistantPage() {
           )}
         </div>
       </div>
+      <ConsentDialog
+        isOpen={isConsentOpen}
+        onClose={() => setIsConsentOpen(false)}
+        onConsentSuccess={() => void refetchAiStatus()}
+      />
     </div>
   );
+}
+
+function getToolRequest(
+  tool: ToolId,
+  input: { inputText: string; secondaryText: string; targetRole: string },
+): { feature: AiFeature; payload: Record<string, unknown> } {
+  const splitList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
+
+  switch (tool) {
+    case 'summary':
+      return {
+        feature: 'summary',
+        payload: { currentSummary: input.inputText, headline: input.targetRole },
+      };
+    case 'bullets':
+      return {
+        feature: 'improve-bullets',
+        payload: { context: input.targetRole, bullets: [input.inputText] },
+      };
+    case 'project':
+      return {
+        feature: 'rewrite-project',
+        payload: {
+          projectName: input.targetRole || 'Project',
+          description: input.inputText,
+          techStack: splitList(input.secondaryText),
+        },
+      };
+    case 'skills':
+      return {
+        feature: 'suggest-skills',
+        payload: { targetRole: input.targetRole, existingSkills: splitList(input.inputText) },
+      };
+    case 'achievements':
+      return { feature: 'achievements', payload: { description: input.inputText } };
+    case 'grammar':
+      return { feature: 'grammar', payload: { text: input.inputText } };
+    case 'tailor':
+      return {
+        feature: 'tailor',
+        payload: { text: input.inputText, jobDescription: input.secondaryText },
+      };
+  }
 }

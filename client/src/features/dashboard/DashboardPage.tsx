@@ -23,14 +23,6 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { TEMPLATE_META, TemplateId } from '../../templates/registry';
 import type { ResumeSummary, ResumeData } from '@smartresume/shared';
 
-interface ResumesResponse {
-  items: ResumeSummary[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
 export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,7 +42,7 @@ export function DashboardPage() {
   const [renameTitle, setRenameTitle] = useState('');
 
   // Fetch resumes
-  const { data, isLoading, isError, refetch } = useQuery<ResumesResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<ResumeSummary[]>({
     queryKey: ['resumes', debouncedSearch, sortBy],
     queryFn: async () => {
       const [field, direction] = sortBy.split(':');
@@ -62,11 +54,11 @@ export function DashboardPage() {
       if (debouncedSearch.trim()) {
         params.set('q', debouncedSearch.trim());
       }
-      return api.get<ResumesResponse>(`/resumes?${params.toString()}`);
+      return api.get<ResumeSummary[]>(`/resumes?${params.toString()}`);
     },
   });
 
-  const resumes = useMemo(() => data?.items ?? [], [data]);
+  const resumes = useMemo(() => data ?? [], [data]);
 
   // Create mutation
   const createMutation = useMutation({
@@ -84,17 +76,6 @@ export function DashboardPage() {
     },
   });
 
-  // Duplicate mutation
-  const duplicateMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return api.post<ResumeData>(`/resumes/${id}/duplicate`, {});
-    },
-    onSuccess: (copy) => {
-      queryClient.invalidateQueries({ queryKey: ['resumes'] });
-      navigate(`/builder/${copy.id}`);
-    },
-  });
-
   // Rename mutation
   const renameMutation = useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) => {
@@ -103,16 +84,6 @@ export function DashboardPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['resumes'] });
       setRenameTarget(null);
-    },
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return api.delete(`/resumes/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resumes'] });
     },
   });
 
@@ -232,6 +203,10 @@ export function DashboardPage() {
               key={resume.id}
               resume={resume}
               onRefresh={() => refetch()}
+              onRename={(target) => {
+                setRenameTarget(target);
+                setRenameTitle(target.title);
+              }}
             />
           ))}
         </div>

@@ -104,6 +104,43 @@ describe('Auth & Resumes API Integration Tests', () => {
     sampleResumeId = sample.id;
   });
 
+  it('POST /api/v1/ai/suggest requires consent and returns suggestions in the API data envelope', async () => {
+    const status = await request(app)
+      .get('/api/v1/ai/status')
+      .set('Authorization', `Bearer ${accessToken}`);
+    expect(status.status).toBe(200);
+    expect(status.body.data.consentAccepted).toBe(false);
+
+    const withoutConsent = await request(app)
+      .post('/api/v1/ai/suggest')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        feature: 'summary',
+        resumeId: sampleResumeId,
+        payload: { headline: 'Software Engineer' },
+      });
+    expect(withoutConsent.status).toBe(403);
+
+    const consent = await request(app)
+      .patch('/api/v1/users/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ aiConsentAccepted: true });
+    expect(consent.status).toBe(200);
+    expect(consent.body.data.user.preferences.aiConsentAcceptedAt).toBeTruthy();
+
+    const suggestion = await request(app)
+      .post('/api/v1/ai/suggest')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        feature: 'summary',
+        resumeId: sampleResumeId,
+        payload: { headline: 'Software Engineer', currentSummary: 'Builds reliable software.' },
+      });
+    expect(suggestion.status).toBe(200);
+    expect(suggestion.body.data.suggestions.length).toBeGreaterThan(0);
+    expect(suggestion.body.data.meta.provider).toBe('mock');
+  });
+
   it('POST /api/v1/resumes creates a new blank resume', async () => {
     const res = await request(app)
       .post('/api/v1/resumes')

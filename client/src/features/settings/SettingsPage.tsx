@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 import {
   User,
   Lock,
@@ -38,6 +38,8 @@ export function SettingsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,13 +114,20 @@ export function SettingsPage() {
   };
 
   const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError('Enter your password to delete your account.');
+      return;
+    }
+
     setIsDeletingAccount(true);
+    setDeleteError(null);
     try {
-      await api.delete('/users/me');
+      await api.delete('/users/me', { body: JSON.stringify({ password: deletePassword }) });
       clearAuth();
       navigate('/login');
     } catch (err: any) {
-      console.error(err);
+      setDeleteError(err.message || 'Failed to delete account');
+    } finally {
       setIsDeletingAccount(false);
     }
   };
@@ -311,15 +320,57 @@ export function SettingsPage() {
         </Button>
       </div>
 
-      <ConfirmDialog
+      <Modal
         isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteAccount}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeletePassword('');
+          setDeleteError(null);
+        }}
         title="Permanently Delete Account?"
-        message="All your resumes, ATS analyses, and profile data will be permanently wiped from the database. Are you absolutely sure?"
-        confirmText="Yes, Delete My Account"
-        variant="danger"
-      />
+        description="This action cannot be undone."
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-text-muted">
+            Your account, resumes, ATS analyses, and profile data will be permanently deleted.
+          </p>
+          <div>
+            <label htmlFor="delete-account-password" className="block text-xs font-semibold text-text mb-1">
+              Confirm your password
+            </label>
+            <Input
+              id="delete-account-password"
+              type="password"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          {deleteError && (
+            <p role="alert" className="text-xs text-danger bg-danger/10 p-2.5 rounded-lg border border-danger/20">
+              {deleteError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={isDeletingAccount}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => void handleDeleteAccount()}
+              isLoading={isDeletingAccount}
+            >
+              Yes, Delete My Account
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

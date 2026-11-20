@@ -48,7 +48,11 @@ export type { RunAtsInput, JobMatchInput } from './schemas/ats.js';
 export type { ResumeData, ResumeSummary, User } from './types/resume.js';
 export type { AtsReport, AtsCheck, Recommendation, KeywordHit, JobMatchResult } from './types/ats.js';
 export { ATS_DISCLAIMER } from './types/ats.js';
-export type { AiSuggestion, AiSuggestResponse, AiStatus } from './types/ai.js';
+export type {
+  AiSuggestion,
+  AiSuggestResponse,
+  AiStatus,
+} from './types/ai.js';
 export type { ApiSuccess, ApiError, ApiResponse, PaginationMeta } from './types/api.js';
 export { ERROR_CODES } from './types/api.js';
 export type { ErrorCode } from './types/api.js';

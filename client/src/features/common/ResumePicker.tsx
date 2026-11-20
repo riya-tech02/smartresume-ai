@@ -31,14 +31,11 @@ export type ResumePickerProps = GridResumePickerProps | SelectResumePickerProps;
 
 export function ResumePicker(props: ResumePickerProps) {
   const navigate = useNavigate();
-  const { data: resumesResponse, isLoading } = useQuery<{ items: ResumeSummary[] } | ResumeSummary[]>({
+  const { data: resumes, isLoading } = useQuery<ResumeSummary[]>({
     queryKey: ['resumes'],
-    queryFn: () => api.get<any>('/resumes?limit=50'),
+    queryFn: () => api.get<ResumeSummary[]>('/resumes?limit=50'),
   });
-
-  const resumes: ResumeSummary[] = Array.isArray(resumesResponse)
-    ? resumesResponse
-    : (resumesResponse as any)?.items || [];
+  const resumeList = resumes ?? [];
 
   // Dropdown Select mode
   if ('onChange' in props && props.onChange) {
@@ -51,7 +48,7 @@ export function ResumePicker(props: ResumePickerProps) {
         <option value="" disabled>
           {isLoading ? 'Loading resumes...' : props.placeholder || 'Select a resume...'}
         </option>
-        {resumes.map((r) => (
+        {resumeList.map((r) => (
           <option key={r.id} value={r.id}>
             {r.title} ({r.completion}% Complete{r.lastAtsScore !== null ? ` • ATS ${r.lastAtsScore}` : ''})
           </option>
@@ -77,7 +74,7 @@ export function ResumePicker(props: ResumePickerProps) {
         <p className="text-xs text-gray-500 mt-1">{props.description}</p>
       </div>
 
-      {resumes.length === 0 ? (
+      {resumeList.length === 0 ? (
         <Card className="p-8 text-center">
           <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
           <h3 className="text-sm font-bold text-gray-900 mb-1">No resumes found</h3>
@@ -88,7 +85,7 @@ export function ResumePicker(props: ResumePickerProps) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {resumes.map((resume) => (
+          {resumeList.map((resume) => (
             <Card
               key={resume.id}
               hover

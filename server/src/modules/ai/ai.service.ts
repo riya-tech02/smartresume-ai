@@ -63,6 +63,7 @@ export class AiService {
           skills: (payload.skills as string[]) || sanitized.skills,
           educationTitles: sanitized.educationTitles,
           roleTitles: sanitized.roleTitles,
+          currentSummary: String(payload.currentSummary || ''),
         });
         break;
       case 'improve-bullets':

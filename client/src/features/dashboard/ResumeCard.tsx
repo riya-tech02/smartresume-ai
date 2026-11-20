@@ -22,9 +22,11 @@ import { useUiStore } from '../../store/uiStore.js';
 export function ResumeCard({
   resume,
   onRefresh,
+  onRename,
 }: {
   resume: ResumeSummary;
   onRefresh: () => void;
+  onRename: (resume: ResumeSummary) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -160,6 +162,14 @@ export function ResumeCard({
                   >
                     <Copy className="w-3.5 h-3.5 text-gray-500" />
                     <span>Duplicate</span>
+                  </button>
+
+                  <button
+                    onClick={() => onRename(resume)}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Rename</span>
                   </button>
 
                   <div className="my-1 border-t border-gray-100" />

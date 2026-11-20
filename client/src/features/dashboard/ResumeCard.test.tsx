@@ -19,7 +19,7 @@ describe('ResumeCard', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <Routes>
-          <Route path="/dashboard" element={<ResumeCard resume={resume} onRefresh={() => undefined} />} />
+          <Route path="/dashboard" element={<ResumeCard resume={resume} onRefresh={() => undefined} onRename={() => undefined} />} />
           <Route path="/builder/:id" element={<div>Builder route</div>} />
         </Routes>
       </MemoryRouter>,
@@ -33,7 +33,7 @@ describe('ResumeCard', () => {
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <Routes>
-          <Route path="/dashboard" element={<ResumeCard resume={resume} onRefresh={() => undefined} />} />
+          <Route path="/dashboard" element={<ResumeCard resume={resume} onRefresh={() => undefined} onRename={() => undefined} />} />
           <Route path="/ats" element={<div>ATS route</div>} />
         </Routes>
       </MemoryRouter>,

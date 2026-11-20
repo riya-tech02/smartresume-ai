@@ -16,8 +16,8 @@ export class AiController {
       data: {
         feature: result.feature,
         suggestions: result.suggestions,
+        meta: result.meta,
       },
-      meta: result.meta,
     });
   }
 }

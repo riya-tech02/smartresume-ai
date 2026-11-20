@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { LIMITS } from '../constants/limits.js';
 
 export const AI_FEATURES = [
   'summary',
@@ -17,7 +16,7 @@ export type AiFeature = (typeof AI_FEATURES)[number];
 export const aiSuggestSchema = z.object({
   feature: z.enum(AI_FEATURES),
   resumeId: z.string().min(1),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
 });
 
 export const aiSuggestionWarning = z.object({

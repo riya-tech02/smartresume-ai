@@ -1,3 +1,5 @@
+import type { AiSuggestionMeta } from '../schemas/ai.js';
+
 export interface AiSuggestion {
   original?: string;
   improved: string;
@@ -8,6 +10,7 @@ export interface AiSuggestion {
 export interface AiSuggestResponse {
   feature: string;
   suggestions: AiSuggestion[];
+  meta: AiSuggestionMeta;
 }
 
 export interface AiStatus {

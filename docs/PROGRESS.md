@@ -101,3 +101,17 @@
     - Job matcher tailoring now sends `baseRevision` when renaming duplicated resumes.
     - Added the first client Vitest suite with coverage for builder and ATS resume-card navigation.
   - **Tests run:** 2 client tests passing.
+
+### Phase 8: Validation and Dependency Hardening
+- **Status:** Done with known lint debt
+- **What changed:**
+  - Added shared-package build prerequisite to workspace typecheck and lint scripts.
+  - Upgraded Zod to 4.6.7 and migrated Zod 4 record validation and error-handling APIs.
+  - Upgraded Puppeteer to 25.18.1 and aligned Docker, runtime documentation, and build target to Node 22.
+  - Changed the local API default to port 5001 because macOS may reserve port 5000; aligned Vite proxy and setup docs.
+  - Aligned dashboard and resume-picker rendering with the backend resume-list array response.
+  - Connected the AI assistant and inline AI actions to the implemented `/ai/suggest` endpoint, including consent and response metadata.
+  - Fixed account deletion to collect and send the required current password.
+- **Tests run:** Production build and workspace typecheck pass; shared (2), server (45), and client (3) tests pass. Browser smoke test passed registration, resume listing, builder loading, AI consent/suggestion generation, and account deletion against local MongoDB.
+- **Security:** `npm audit --omit=dev` reports 0 production vulnerabilities.
+- **Known remaining validation:** ESLint still reports 89 code-quality violations across frontend and backend, chiefly explicit `any` usage. A full lint cleanup remains; these do not block build, typecheck, tests, or local runtime.

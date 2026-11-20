@@ -3,9 +3,10 @@ import { useEditorStore } from '../../../store/editorStore';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
-import { api } from '../../../lib/api';
+import { requestAiSuggestion } from '../../assistant/aiApi';
+import { getErrorMessage } from '../../../lib/errors';
 import { Plus, Trash2, Sparkles, X, Loader2 } from 'lucide-react';
-import type { SkillGroup } from '@smartresume/shared';
+import type { AiSuggestionWarning, SkillGroup } from '@smartresume/shared';
 
 interface SkillsEditorProps {
   sectionId: string;
@@ -16,6 +17,7 @@ export function SkillsEditor({ sectionId }: SkillsEditorProps) {
     s.resume?.sections.find((sec) => sec.id === sectionId)
   );
   const headline = useEditorStore((s) => s.resume?.personalInfo?.headline);
+  const resumeId = useEditorStore((s) => s.resume?.id);
   const updateSectionData = useEditorStore((s) => s.updateSectionData);
 
   const rawGroups = (section?.data as any)?.groups || [];
@@ -24,6 +26,7 @@ export function SkillsEditor({ sectionId }: SkillsEditorProps) {
   const [newSkillInput, setNewSkillInput] = useState<Record<number, string>>({});
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<AiSuggestionWarning[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const handleAddGroup = () => {
@@ -80,19 +83,23 @@ export function SkillsEditor({ sectionId }: SkillsEditorProps) {
     setIsSuggesting(true);
     setError(null);
     try {
+      if (!resumeId) throw new Error('Save the resume before requesting AI suggestions.');
       const allCurrentSkills = groups.flatMap((g) => g.items);
-      const res = await api.post<{
-        suggestions: { skill: string; category?: string }[];
-      }>('/ai/skills', {
-        targetRole: headline || 'Software Engineer',
-        currentSkills: allCurrentSkills,
+      const res = await requestAiSuggestion({
+        feature: 'suggest-skills',
+        resumeId,
+        payload: {
+          targetRole: headline || 'Software Engineer',
+          existingSkills: allCurrentSkills,
+        },
       });
 
       if (res.suggestions) {
-        setSuggestedSkills(res.suggestions.map((s) => s.skill));
+        setSuggestedSkills(res.suggestions.map((suggestion) => suggestion.improved));
+        setWarnings(res.meta.warnings);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch skill recommendations');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch skill recommendations'));
     } finally {
       setIsSuggesting(false);
     }
@@ -168,6 +175,11 @@ export function SkillsEditor({ sectionId }: SkillsEditorProps) {
       {/* Suggested Skills Banner */}
       {suggestedSkills.length > 0 && (
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
+          {warnings.length > 0 && (
+            <p className="text-xs text-warning">
+              Review AI suggestions carefully; some details may need verification.
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-primary flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
