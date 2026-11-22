@@ -26,7 +26,7 @@ export function AtsPage() {
     queryKey: ['atsAnalysis', selectedResumeId],
     queryFn: async () => {
       // Try to get latest analysis or run one
-      return api.post<AtsReport>(`/resumes/${selectedResumeId}/analyze`, {});
+      return api.post<AtsReport>(`/resumes/${selectedResumeId}/ats`, {});
     },
     enabled: !!selectedResumeId,
     retry: false,
@@ -35,7 +35,7 @@ export function AtsPage() {
   // Re-run analysis mutation
   const runMutation = useMutation({
     mutationFn: async () => {
-      return api.post<AtsReport>(`/resumes/${selectedResumeId}/analyze`, {});
+      return api.post<AtsReport>(`/resumes/${selectedResumeId}/ats`, {});
     },
     onSuccess: (newAnalysis) => {
       queryClient.setQueryData(['atsAnalysis', selectedResumeId], newAnalysis);

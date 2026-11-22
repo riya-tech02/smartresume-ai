@@ -35,7 +35,7 @@ export function JobMatchPage() {
   // Match mutation
   const matchMutation = useMutation({
     mutationFn: async () => {
-      return api.post<JobMatchResult>(`/resumes/${selectedResumeId}/match`, {
+      return api.post<JobMatchResult>(`/resumes/${selectedResumeId}/job-match`, {
         jobDescription: jobDescription.trim(),
         targetRole: jobTitle.trim() || undefined,
       });
