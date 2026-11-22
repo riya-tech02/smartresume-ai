@@ -4,6 +4,7 @@ import request from 'supertest';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { createApp } from '../../src/app.js';
+import { removeLegacyUsernameIndex } from '../../src/config/db.js';
 
 let mongod: MongoMemoryServer;
 let app: ReturnType<typeof createApp>;
@@ -29,6 +30,17 @@ describe('Auth & Resumes API Integration Tests', () => {
     const res = await request(app).get('/api/v1/health');
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
+  });
+
+  it('removes the obsolete unique username index so new users can register', async () => {
+    const users = mongoose.connection.collection('users');
+    await users.insertOne({ _id: new mongoose.Types.ObjectId() });
+    await users.createIndex({ username: 1 }, { unique: true });
+
+    await removeLegacyUsernameIndex();
+
+    const indexes = await users.indexes();
+    expect(indexes.some((index) => index.unique && index.key.username === 1)).toBe(false);
   });
 
   it('POST /api/v1/auth/register creates user, sample resume, and sets refresh cookie', async () => {
