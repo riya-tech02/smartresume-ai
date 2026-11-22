@@ -76,6 +76,16 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/job-match"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <JobMatchPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/assistant"
